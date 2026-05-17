@@ -1,6 +1,6 @@
 # CI/CD GitOps pipeline
 
-End-to-end delivery from a developer push to a running pod on a self-hosted Kubernetes cluster: **GitHub Actions → GHCR → this repo (Kustomize overlays) → ArgoCD → RKE2 → nginx Ingress → Cloudflare Tunnel**. Three production applications currently ride this pipeline.
+End-to-end delivery from a developer push to a running pod on a self-hosted Kubernetes cluster: **GitHub Actions → GHCR → this repo (Kustomize overlays) → ArgoCD → RKE2 → nginx Ingress → Cloudflare Tunnel**. Three production applications currently ride this pipeline; two of them (OT-edge, `alexmchugh-dev`) go through a hardened supply chain CI with Cosign-signed images, attested SBOMs, and Trivy + TruffleHog gates. See `decisions/0004` for the stack.
 
 This repo is the manifest source of truth ArgoCD reconciles from. CI workflows in each application repo build images, push to GHCR, then commit a `kustomize edit set image` here. Per-app overlays live under `apps/`, the platform components that serve them under `infrastructure/`, end-to-end walkthroughs under `docs/`, and the architectural decisions behind the platform under `decisions/`.
 
@@ -15,8 +15,8 @@ This repo is the manifest source of truth ArgoCD reconciles from. CI workflows i
 ```mermaid
 flowchart LR
   dev["developer<br/>git push"] --> appRepo["GitHub<br/>app repo"]
-  appRepo --> ci["GitHub Actions<br/>build &amp; push"]
-  ci --> ghcr[("GHCR<br/>image registry")]
+  appRepo --> ci["GitHub Actions<br/>test, scan, sign,<br/>build, SBOM"]
+  ci --> ghcr[("GHCR<br/>signed image +<br/>SBOM attestation")]
   ci --> manifest["GitHub<br/>cicd-gitops-pipeline<br/>(this repo)"]
   manifest -. ArgoCD watches .-> argocd["ArgoCD<br/>(in cluster)"]
   argocd -- reconciles --> rke2["RKE2 cluster<br/>(Rocky Linux 9, 1 node)"]
@@ -41,6 +41,7 @@ Detailed walkthroughs and diagrams live in `docs/architecture.md`.
 | GitOps | ArgoCD (UI-registered Applications, no ApplicationSet) |
 | Manifest layering | Kustomize (base + `overlays/production`) |
 | CI | GitHub Actions |
+| Supply chain (OT-edge, `alexmchugh-dev`) | Trivy fs + image scan (CRITICAL blocking), Cosign keyless OIDC signing, Syft SBOM (SPDX + CycloneDX) attested via Cosign, TruffleHog `--only-verified`, language-specific vulnerability scan (govulncheck for Go, OSV-Scanner + `npm audit` for Node). See `decisions/0004`. |
 | Image registry | GitHub Container Registry (GHCR), public images |
 | Edge | Cloudflare Tunnel (`cloudflared` systemd unit on the host) |
 | DNS | Cloudflare |

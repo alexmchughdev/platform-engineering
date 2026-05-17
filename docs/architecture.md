@@ -56,16 +56,24 @@ For FixMyCampus specifically, the SPA's nginx pod also reverse-proxies `/api/` t
 
 ```mermaid
 flowchart LR
-  push["git push (app repo)"] --> gha["GitHub Actions<br/>build &amp; push"]
-  gha --> ghcr[("GHCR<br/>ghcr.io/alexmchughdev/&lt;image&gt;:sha-XXXX")]
-  gha --> sshclone["SSH-clone this repo<br/>(MANIFEST_DEPLOY_KEY)"]
-  sshclone --> kedit["kustomize edit set image<br/>in apps/&lt;app&gt;/overlays/production"]
-  kedit --> commit["git commit + push<br/>to cicd-gitops-pipeline main"]
-  commit -. ArgoCD watches .-> argocd[ArgoCD]
+  push["git push (app repo)"] --> ci["GitHub Actions"]
+
+  ci --> test["test<br/>vet / lint / vuln scan"]
+  ci --> secret["secret-scan<br/>TruffleHog --only-verified"]
+  ci --> fs["fs-scan<br/>Trivy fs (CRITICAL blocks)"]
+
+  test --> build
+  secret --> build
+  fs --> build
+
+  build["build &amp; push<br/>provenance + inline SBOM<br/>Cosign keyless sign<br/>Syft SBOM attest"] --> ghcr[("GHCR<br/>ghcr.io/alexmchughdev/&lt;image&gt;:sha-XXXX")]
+  build --> imgscan["image-scan<br/>Trivy image (CRITICAL blocks)"]
+  imgscan --> manifest["update-manifest<br/>kustomize edit + commit"]
+  manifest -. ArgoCD watches .-> argocd[ArgoCD]
   argocd --> rolling["rolling update<br/>(new image, old ReplicaSet drained)"]
 ```
 
-- Build and manifest update are a single workflow with two jobs. The manifest update only runs after a successful image push, so a failed build never leaves the cluster on a half-applied state.
+- Build and manifest update are gated stages of a single workflow. The `update-manifest` job runs only after every prior stage is green (tests, secret scan, filesystem scan, signed build with SBOM attestation, image scan), so a failed gate never leaves the cluster on a half-applied state. Apps that have not yet adopted the supply chain stack run the simpler two-job shape (build then bump).
 - Image tag is `sha-<short-sha>` of the app source commit. Mutable tags (`latest`) are not used in production overlays.
 - The CI runner needs `MANIFEST_DEPLOY_KEY` (an SSH private key with write access to this repo) to push. The public half is registered as a deploy key on this repo.
 

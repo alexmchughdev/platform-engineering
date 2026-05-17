@@ -1,10 +1,16 @@
 flowchart LR
-  push["git push<br/>(app repo)"]
-  --> ci["GitHub Actions"]
-  --> build["docker build &amp; push<br/>ghcr.io/.../&lt;image&gt;:sha-XXXX"]
-  --> ghcr[("GHCR")]
+  push["git push<br/>(app repo)"] --> ci["GitHub Actions"]
 
-  ci --> ssh["SSH-clone manifest repo<br/>(MANIFEST_DEPLOY_KEY)"]
-  --> kust["kustomize edit set image<br/>apps/&lt;app&gt;/overlays/production"]
-  --> commit["git commit + push<br/>to cicd-gitops-pipeline"]
-  --> argocd((ArgoCD reconciles))
+  ci --> test["test<br/>vet / lint / vuln scan"]
+  ci --> secret["secret-scan<br/>TruffleHog --only-verified"]
+  ci --> fs["fs-scan<br/>Trivy fs (CRITICAL blocks)"]
+
+  test --> build
+  secret --> build
+  fs --> build
+
+  build["build &amp; push<br/>provenance + inline SBOM<br/>Cosign keyless sign<br/>Syft SBOM attest"] --> ghcr[("GHCR")]
+  build --> imgscan["image-scan<br/>Trivy image (CRITICAL blocks)"]
+  imgscan --> manifest["update-manifest<br/>kustomize edit + commit"]
+  manifest --> repo[("cicd-gitops-pipeline")]
+  repo -. ArgoCD watches .-> argocd((ArgoCD reconciles))
