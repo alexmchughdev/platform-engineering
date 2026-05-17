@@ -15,9 +15,27 @@ This repo is the manifest source of truth ArgoCD reconciles from. CI workflows i
 ```mermaid
 flowchart LR
   dev["developer<br/>git push"] --> appRepo["GitHub<br/>app repo"]
-  appRepo --> ci["GitHub Actions<br/>test, scan, sign,<br/>build, SBOM"]
-  ci --> ghcr[("GHCR<br/>signed image +<br/>SBOM attestation")]
-  ci --> manifest["GitHub<br/>cicd-gitops-pipeline<br/>(this repo)"]
+
+  appRepo --> test
+  appRepo --> secret
+  appRepo --> fs
+
+  subgraph ci ["GitHub Actions (CI)"]
+    direction TB
+    test["test<br/>vet / lint / vuln scan"]
+    secret["secret-scan<br/>TruffleHog --only-verified"]
+    fs["fs-scan<br/>Trivy fs (CRITICAL blocks)"]
+    build["build &amp; push<br/>provenance + inline SBOM<br/>Cosign keyless sign<br/>Syft SBOM attest"]
+    imgscan["image-scan<br/>Trivy image (CRITICAL blocks)"]
+    bump["update-manifest<br/>kustomize edit + commit"]
+    test --> build
+    secret --> build
+    fs --> build
+    build --> imgscan --> bump
+  end
+
+  build --> ghcr[("GHCR<br/>signed image +<br/>SBOM attestation")]
+  bump --> manifest["GitHub<br/>cicd-gitops-pipeline<br/>(this repo)"]
   manifest -. ArgoCD watches .-> argocd["ArgoCD<br/>(in cluster)"]
   argocd -- reconciles --> rke2["RKE2 cluster<br/>(Rocky Linux 9, 1 node)"]
   ghcr -. pull .-> rke2
