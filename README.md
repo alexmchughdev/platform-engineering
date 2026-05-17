@@ -87,9 +87,9 @@ README.md
 
 ## Roadmap (planned, not yet implemented)
 
-- Roll the OT-edge supply chain pipeline (Trivy fs + image scan, Cosign keyless signing, Syft SBOM, govulncheck, TruffleHog) out to `alexmchugh-dev`, `fixmycampus`, and `foghorn`. `lookout` will reach the equivalent assurance via goreleaser + SLSA L3 because it ships a published binary rather than a container. OT-edge is the reference implementation; see `decisions/0004-supply-chain-security-in-ci.md`.
+- Roll the OT-edge supply chain pipeline (Trivy fs + image scan, Cosign keyless signing, Syft SBOM, language-appropriate vulnerability scanning, TruffleHog) out to `fixmycampus` and `foghorn`. `lookout` will reach the equivalent assurance via goreleaser + SLSA L3 because it ships a published binary rather than a container. Reference implementations: OT-edge (Go) and `alexmchugh-dev` (Node/Next.js); see `decisions/0004-supply-chain-security-in-ci.md`.
 - Static analysis (Semgrep in CI).
-- Policy enforcement (Kyverno) for things like "no `:latest` tags in Deployments", "non-root containers", "resource limits set". A later phase will add `verifyImages` to require a valid Cosign signature on every pulled image, building on the signing now in place for OT-edge (`decisions/0004`).
+- Policy enforcement (Kyverno) for things like "no `:latest` tags in Deployments", "non-root containers", "resource limits set". A later phase will add `verifyImages` to require a valid Cosign signature on every pulled image, building on the signing now in place for OT-edge and `alexmchugh-dev` (`decisions/0004`).
 - Secret management with SealedSecrets or sops, replacing the current "apply secret out-of-band + annotate to skip ArgoCD" pattern.
 - Observability stack: Prometheus + Grafana for metrics, Loki for logs, optionally Jaeger for tracing.
 - Multi-environment overlays (`overlays/staging`, `overlays/production`) and a staging cluster.

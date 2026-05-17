@@ -19,12 +19,13 @@ Phase 6 of the platform roadmap adds Kyverno `verifyImages` to refuse any pulled
 
 ## Decision
 
-Each app's CI workflow runs the following stack before, during, and after the image build. The OT-edge pipeline (`.github/workflows/ci.yaml` in `alexmchughdev/OT-edge-asset-tag-generator`) is the reference implementation.
+Each app's CI workflow runs the following stack before, during, and after the image build. Two reference implementations exist: OT-edge (`.github/workflows/ci.yaml` in `alexmchughdev/OT-edge-asset-tag-generator`, Go) and `alexmchugh-dev` (`.github/workflows/ci.yaml` in `alexmchughdev/alexmchugh-dev`, Node/Next.js).
 
-**Source-level controls (pre-build)**
+**Source-level controls (pre-build, language-specific)**
 
-- `go test -race`, `go vet`, and `golangci-lint` on every push and PR.
-- `govulncheck` against the call graph, not just the module list. A CVE in an imported package that the app never reaches does not block the build.
+- Type and lint checks on every push and PR. OT-edge runs `go vet` and `golangci-lint`; `alexmchugh-dev` runs `tsc --noEmit` and `next lint`.
+- Unit tests with the race detector where applicable (`go test -race` on OT-edge; `alexmchugh-dev` has no test suite yet, tracked as a follow-up).
+- Dependency vulnerability scan with the best signal each ecosystem offers: `govulncheck` on OT-edge for call-graph reachability (a CVE in an imported package the app never reaches does not block the build); `npm audit --audit-level=critical --omit=dev` plus OSV-Scanner SARIF on `alexmchugh-dev` because Node has no call-graph equivalent.
 - TruffleHog with `--only-verified` so the gate fails only on credentials TruffleHog could verify against a live service, not on regex matches alone.
 
 **Filesystem scan (pre-build)**
@@ -68,4 +69,4 @@ The CRITICAL-only blocking threshold is deliberate. HIGH and MEDIUM findings sti
 
 ## Roadmap link
 
-Rolling this stack out to `alexmchugh-dev`, `fixmycampus`, and `foghorn` is on the README roadmap. `lookout` will reach equivalent assurance via goreleaser plus SLSA L3 because it ships as a published binary rather than a container image. Phase 6 (Kyverno `verifyImages`) depends on this ADR being in place across every app whose image the cluster pulls.
+Rolling this stack out to `fixmycampus` and `foghorn` is on the README roadmap. `lookout` will reach equivalent assurance via goreleaser plus SLSA L3 because it ships as a published binary rather than a container image. Phase 6 (Kyverno `verifyImages`) depends on this ADR being in place across every app whose image the cluster pulls.
